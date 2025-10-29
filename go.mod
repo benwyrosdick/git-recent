@@ -1,4 +1,4 @@
-module git-recent
+module github.com/benwyrosdick/git-recent
 
 go 1.21
 
