@@ -13,6 +13,7 @@ import (
 type model struct {
 	branches []string
 	cursor   int
+	offset   int
 	err      error
 }
 
@@ -38,6 +39,7 @@ func initialModel() model {
 	return model{
 		branches: branches,
 		cursor:   0,
+		offset:   0,
 		err:      err,
 	}
 }
@@ -56,11 +58,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "up", "k":
 			if m.cursor > 0 {
 				m.cursor--
+				if m.cursor < m.offset {
+					m.offset--
+				}
 			}
 
 		case "down", "j":
 			if m.cursor < len(m.branches)-1 {
 				m.cursor++
+				if m.cursor >= m.offset+10 {
+					m.offset++
+				}
 			}
 
 		case "enter":
@@ -85,7 +93,13 @@ func (m model) View() string {
 	selectedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Bold(true)
 	cursorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
-	for i, branch := range m.branches {
+	end := m.offset + 10
+	if end > len(m.branches) {
+		end = len(m.branches)
+	}
+
+	for i := m.offset; i < end; i++ {
+		branch := m.branches[i]
 		cursor := " "
 		if m.cursor == i {
 			cursor = cursorStyle.Render("›")
@@ -94,7 +108,7 @@ func (m model) View() string {
 		s += fmt.Sprintf("%s %s\n", cursor, branch)
 	}
 
-	s += "\n(↑/↓ to move, enter to select, q to quit)\n"
+	s += "\n(j/k to move, enter to select, q to quit)\n"
 	return s
 }
 
