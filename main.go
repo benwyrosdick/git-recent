@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -14,11 +15,17 @@ type model struct {
 	branches []string
 	cursor   int
 	offset   int
+	remote   bool
 	err      error
 }
 
-func getRecentBranches() ([]string, error) {
-	cmd := exec.Command("git", "for-each-ref", "--sort=-committerdate", "refs/heads/", "--format=%(refname:short)")
+func getRecentBranches(remote bool) ([]string, error) {
+	var cmd *exec.Cmd
+	if remote {
+		cmd = exec.Command("git", "for-each-ref", "--sort=-committerdate", "refs/remotes/", "--format=%(refname:short)")
+	} else {
+		cmd = exec.Command("git", "for-each-ref", "--sort=-committerdate", "refs/heads/", "--format=%(refname:short)")
+	}
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, err
@@ -27,19 +34,20 @@ func getRecentBranches() ([]string, error) {
 	branches := strings.Split(strings.TrimSpace(string(output)), "\n")
 	var filtered []string
 	for _, b := range branches {
-		if b != "" {
+		if b != "" && !strings.HasSuffix(b, "/HEAD") {
 			filtered = append(filtered, b)
 		}
 	}
 	return filtered, nil
 }
 
-func initialModel() model {
-	branches, err := getRecentBranches()
+func initialModel(remote bool) model {
+	branches, err := getRecentBranches(remote)
 	return model{
 		branches: branches,
 		cursor:   0,
 		offset:   0,
+		remote:   remote,
 		err:      err,
 	}
 }
@@ -112,15 +120,24 @@ func (m model) View() string {
 	return s
 }
 
-func checkoutBranch(branch string) error {
-	cmd := exec.Command("git", "checkout", branch)
+func checkoutBranch(branch string, remote bool) error {
+	var cmd *exec.Cmd
+	if remote {
+		cmd = exec.Command("git", "checkout", "--track", branch)
+	} else {
+		cmd = exec.Command("git", "checkout", branch)
+	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
 
 func main() {
-	p := tea.NewProgram(initialModel())
+	remote := flag.Bool("r", false, "list remote branches")
+	flag.BoolVar(remote, "remote", false, "list remote branches")
+	flag.Parse()
+
+	p := tea.NewProgram(initialModel(*remote))
 	m, err := p.Run()
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
@@ -136,7 +153,7 @@ func main() {
 	if len(finalModel.branches) > 0 {
 		selectedBranch := finalModel.branches[finalModel.cursor]
 		fmt.Printf("Checking out: %s\n", selectedBranch)
-		if err := checkoutBranch(selectedBranch); err != nil {
+		if err := checkoutBranch(selectedBranch, finalModel.remote); err != nil {
 			fmt.Printf("Failed to checkout branch: %v\n", err)
 			os.Exit(1)
 		}
