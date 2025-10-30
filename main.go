@@ -123,7 +123,13 @@ func (m model) View() string {
 func checkoutBranch(branch string, remote bool) error {
 	var cmd *exec.Cmd
 	if remote {
-		cmd = exec.Command("git", "checkout", "--track", branch)
+		parts := strings.SplitN(branch, "/", 2)
+		if len(parts) == 2 {
+			localBranch := parts[1]
+			cmd = exec.Command("git", "checkout", localBranch)
+		} else {
+			cmd = exec.Command("git", "checkout", "--track", branch)
+		}
 	} else {
 		cmd = exec.Command("git", "checkout", branch)
 	}
