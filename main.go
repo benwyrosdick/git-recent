@@ -16,6 +16,7 @@ type model struct {
 	cursor   int
 	offset   int
 	remote   bool
+	selected bool
 	err      error
 }
 
@@ -48,6 +49,7 @@ func initialModel(remote bool) model {
 		cursor:   0,
 		offset:   0,
 		remote:   remote,
+		selected: false,
 		err:      err,
 	}
 }
@@ -60,7 +62,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c", "q":
+		case "ctrl+c", "q", "esc":
 			return m, tea.Quit
 
 		case "up", "k":
@@ -80,6 +82,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case "enter":
+			m.selected = true
 			return m, tea.Quit
 		}
 	}
@@ -156,7 +159,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if len(finalModel.branches) > 0 {
+	if finalModel.selected && len(finalModel.branches) > 0 {
 		selectedBranch := finalModel.branches[finalModel.cursor]
 		fmt.Printf("Checking out: %s\n", selectedBranch)
 		if err := checkoutBranch(selectedBranch, finalModel.remote); err != nil {
