@@ -42,7 +42,17 @@ Shows a list of remote branches. If a local tracking branch already exists, it w
 
 ## Controls
 
+### Navigation
 - `↑`/`k` - Move up
 - `↓`/`j` - Move down
 - `Enter` - Checkout selected branch
-- `q`/`Esc`/`Ctrl+C` - Quit without checking out
+- `q`/`Ctrl+C` - Quit without checking out
+
+### Filtering
+- `/` - Enter filter mode
+- Type to filter branches (case-insensitive, real-time)
+- `Enter` (in filter mode) - Keep filtered list and exit filter mode
+- `Esc` (in filter mode) - Cancel filter and restore full list
+- `Esc` (with filter applied) - Clear filter and show all branches
+- `Esc` (no filter) - Quit without checking out
+- `Backspace` - Remove last character from filter text

@@ -12,12 +12,16 @@ import (
 )
 
 type model struct {
-	branches []string
-	cursor   int
-	offset   int
-	remote   bool
-	selected bool
-	err      error
+	branches        []string
+	allBranches     []string // original unfiltered list
+	cursor          int
+	offset          int
+	remote          bool
+	selected        bool
+	err             error
+	filterMode      bool
+	filterText      string
+	filteredApplied bool // tracks if we're showing a filtered list
 }
 
 func getRecentBranches(remote bool) ([]string, error) {
@@ -45,12 +49,16 @@ func getRecentBranches(remote bool) ([]string, error) {
 func initialModel(remote bool) model {
 	branches, err := getRecentBranches(remote)
 	return model{
-		branches: branches,
-		cursor:   0,
-		offset:   0,
-		remote:   remote,
-		selected: false,
-		err:      err,
+		branches:        branches,
+		allBranches:     branches,
+		cursor:          0,
+		offset:          0,
+		remote:          remote,
+		selected:        false,
+		err:             err,
+		filterMode:      false,
+		filterText:      "",
+		filteredApplied: false,
 	}
 }
 
@@ -61,9 +69,57 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// Handle filter mode
+		if m.filterMode {
+			switch msg.String() {
+			case "esc":
+				// Cancel filter mode and restore original list
+				m.filterMode = false
+				m.filterText = ""
+				m.branches = m.allBranches
+				m.cursor = 0
+				m.offset = 0
+				m.filteredApplied = false
+			case "enter":
+				// Keep the filtered list and exit filter mode
+				m.filterMode = false
+				m.filteredApplied = true
+			case "backspace":
+				if len(m.filterText) > 0 {
+					m.filterText = m.filterText[:len(m.filterText)-1]
+					m.applyFilter()
+				}
+			default:
+				// Add character to filter
+				if len(msg.String()) == 1 {
+					m.filterText += msg.String()
+					m.applyFilter()
+				}
+			}
+			return m, nil
+		}
+
+		// Normal mode
 		switch msg.String() {
-		case "ctrl+c", "q", "esc":
+		case "ctrl+c", "q":
 			return m, tea.Quit
+
+		case "esc":
+			// Clear filter if one is applied, otherwise quit
+			if m.filteredApplied {
+				m.branches = m.allBranches
+				m.filterText = ""
+				m.cursor = 0
+				m.offset = 0
+				m.filteredApplied = false
+			} else {
+				return m, tea.Quit
+			}
+
+		case "/":
+			// Enter filter mode
+			m.filterMode = true
+			m.filterText = ""
 
 		case "up", "k":
 			if m.cursor > 0 {
@@ -90,12 +146,35 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m *model) applyFilter() {
+	if m.filterText == "" {
+		m.branches = m.allBranches
+		m.cursor = 0
+		m.offset = 0
+		return
+	}
+
+	var filtered []string
+	filterLower := strings.ToLower(m.filterText)
+	for _, branch := range m.allBranches {
+		if strings.Contains(strings.ToLower(branch), filterLower) {
+			filtered = append(filtered, branch)
+		}
+	}
+	m.branches = filtered
+	m.cursor = 0
+	m.offset = 0
+}
+
 func (m model) View() string {
 	if m.err != nil {
 		return fmt.Sprintf("Error: %v\n", m.err)
 	}
 
 	if len(m.branches) == 0 {
+		if m.filterMode {
+			return fmt.Sprintf("No branches match filter.\n\nFilter: /%s_\n\n(type to filter, enter to keep, esc to cancel)\n", m.filterText)
+		}
 		return "No branches found.\n"
 	}
 
@@ -119,7 +198,18 @@ func (m model) View() string {
 		s += fmt.Sprintf("%s %s\n", cursor, branch)
 	}
 
-	s += "\n(j/k to move, enter to select, q to quit)\n"
+	s += "\n"
+
+	if m.filterMode {
+		s += fmt.Sprintf("Filter: /%s_\n", m.filterText)
+		s += "(type to filter, enter to keep, esc to cancel)\n"
+	} else if m.filteredApplied {
+		s += fmt.Sprintf("[Filtered: %s] ", m.filterText)
+		s += "(/ to filter, esc to clear, j/k to move, enter to select, q to quit)\n"
+	} else {
+		s += "(/ to filter, j/k to move, enter to select, q to quit)\n"
+	}
+
 	return s
 }
 
